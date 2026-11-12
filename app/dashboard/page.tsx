@@ -118,9 +118,44 @@ function greeting() {
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  const { data: items } = await supabase.from("inventory_items").select("*").order("created_at", { ascending: false });
-  const inventory: Item[] = items ?? [];
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return <div>Silakan login terlebih dahulu.</div>;
+  }
+
+  const { data: items, error: inventoryError } = await supabase
+    .from("inventory_items")
+    .select(`
+      id,
+      user_id,
+      quantity,
+      unit,
+      created_at,
+      ingredient_id,
+      ingredients (
+        name
+      )
+    `)
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (inventoryError) {
+    console.error("Gagal mengambil inventaris:", inventoryError);
+  }
+
+  const inventory = (items ?? []).map((item: any) => ({
+    id: item.id,
+    name: item.ingredients?.name ?? "Bahan tidak diketahui",
+    quantity: item.quantity,
+    unit: item.unit,
+    expiry_date: null,
+  }));
+
+  // Lanjutkan kode Dashboard seperti sebelumnya.
 
   const low = inventory.filter(isLowStock);
   const expiring = inventory
@@ -132,7 +167,7 @@ export default async function DashboardPage() {
     )
     .sort((a, b) => new Date(a.expiry_date!).getTime() - new Date(b.expiry_date!).getTime());
 
-  const name = userData.user?.user_metadata?.full_name || "Pengguna";
+  const name = user.user_metadata?.full_name || "Pengguna";
 
   return (
     <div className="text-[#173d2b]">
